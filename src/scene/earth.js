@@ -669,8 +669,8 @@ export class EarthGlobe {
   createPin(colorHex, label) {
     const group = new THREE.Group();
 
-    // Ground pulse ring
-    const ringGeo = new THREE.RingGeometry(0.8, 1.4, 32);
+    // Sleek ground pulse ring (smaller so it doesn't overpower blast zones)
+    const ringGeo = new THREE.RingGeometry(0.2, 0.45, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: colorHex,
       side: THREE.DoubleSide,
@@ -681,9 +681,9 @@ export class EarthGlobe {
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     group.add(ringMesh);
 
-    // Vertical beacon mast
-    const lineGeo = new THREE.CylinderGeometry(0.12, 0.12, 5, 8);
-    lineGeo.translate(0, 2.5, 0);
+    // Vertical beacon mast (thin tactical needle)
+    const lineGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8);
+    lineGeo.translate(0, 1.1, 0);
     const lineMat = new THREE.MeshBasicMaterial({
       color: colorHex,
       transparent: true,
@@ -694,8 +694,8 @@ export class EarthGlobe {
     group.add(lineMesh);
 
     // Glowing head sphere
-    const headGeo = new THREE.SphereGeometry(0.7, 16, 16);
-    headGeo.translate(0, 5, 0);
+    const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
+    headGeo.translate(0, 2.2, 0);
     const headMat = new THREE.MeshBasicMaterial({ color: colorHex });
     const headMesh = new THREE.Mesh(headGeo, headMat);
     group.add(headMesh);
@@ -708,6 +708,16 @@ export class EarthGlobe {
       color: colorHex,
       label
     };
+  }
+
+  setPinsVisible(visible) {
+    this.pinsGroup.visible = visible;
+  }
+
+  setTargetPinVisible(visible) {
+    if (this.targetPin && this.targetPin.mesh) {
+      this.targetPin.mesh.visible = visible;
+    }
   }
 
   updatePinPosition(pinType, lat, lon) {

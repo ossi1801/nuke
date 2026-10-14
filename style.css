@@ -659,6 +659,43 @@ body, html {
   box-shadow: 0 0 10px var(--accent-cyan);
 }
 
+.hud-bar-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-bar-separator {
+  width: 1px;
+  height: 20px;
+  background: rgba(0, 240, 255, 0.25);
+  margin: 0 6px;
+}
+
+.scale-btn, .toggle-tool-btn {
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid var(--panel-border);
+  color: var(--text-main);
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.scale-btn:hover, .toggle-tool-btn:hover {
+  background: rgba(0, 240, 255, 0.22);
+}
+
+.scale-btn.active, .toggle-tool-btn.active {
+  background: var(--accent-cyan);
+  color: #03070d;
+  font-weight: 700;
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
 /* PICK BANNER */
 .pick-banner {
   position: absolute;

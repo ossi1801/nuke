@@ -359,13 +359,31 @@ export class SimulationHUD {
 
       <!-- Bottom Floating Camera Bar -->
       <nav class="hud-bottom-bar">
-        <span class="cam-label">CAMERA:</span>
-        <button class="cam-btn active" data-cam="orbit">${ICONS.ORBIT} Free Orbit</button>
-        <button class="cam-btn" data-cam="missile" id="cam-btn-missile">${ICONS.FLIGHT} Follow Missile</button>
-        <button class="cam-btn" data-cam="salvo" id="cam-btn-salvo">${ICONS.SALVO} Track Salvo</button>
-        <button class="cam-btn" data-cam="target">${ICONS.RADAR} Regional View</button>
-        <button class="cam-btn" data-cam="city">${ICONS.CITY} City Close-Up</button>
-        <button class="cam-btn" data-cam="blast">${ICONS.BLAST_OVERVIEW} Blast Overview</button>
+        <div class="hud-bar-section">
+          <span class="cam-label">VIEW:</span>
+          <button class="cam-btn active" data-cam="orbit">${ICONS.ORBIT} Free Orbit</button>
+          <button class="cam-btn" data-cam="missile" id="cam-btn-missile">${ICONS.FLIGHT} Follow Missile</button>
+          <button class="cam-btn" data-cam="salvo" id="cam-btn-salvo">${ICONS.SALVO} Track Salvo</button>
+          <button class="cam-btn" data-cam="target">${ICONS.RADAR} Regional View</button>
+          <button class="cam-btn" data-cam="city">${ICONS.CITY} City Close-Up</button>
+          <button class="cam-btn" data-cam="blast">${ICONS.BLAST_OVERVIEW} Blast Overview</button>
+        </div>
+
+        <div class="hud-bar-separator"></div>
+
+        <div class="hud-bar-section">
+          <span class="cam-label">RADIUS SCALE:</span>
+          <button class="scale-btn active" data-scale="1" title="Real-world 1:1 physical meter radius">1× Real</button>
+          <button class="scale-btn" data-scale="5" title="5x magnification for regional view">5× Regional</button>
+          <button class="scale-btn" data-scale="15" title="15x planetary boost for clear view from space orbit">15× Orbit Boost</button>
+        </div>
+
+        <div class="hud-bar-separator"></div>
+
+        <div class="hud-bar-section">
+          <button class="toggle-tool-btn active" id="btn-toggle-pins" title="Hide or show launch/target marker pins">📍 PINS: ON</button>
+          <button class="toggle-tool-btn active" id="btn-toggle-cloud" title="Hide mushroom cloud to inspect ground blast radius cleanly">☁️ CLOUD: ON</button>
+        </div>
       </nav>
 
       <!-- Picking instructions banner (hidden by default) -->
@@ -578,6 +596,41 @@ export class SimulationHUD {
         this.app.setCameraMode(btn.dataset.cam);
       });
     });
+
+    // Tactical Radius Scale buttons (1x, 5x, 15x)
+    const scaleBtns = document.querySelectorAll('.scale-btn');
+    scaleBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        scaleBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const scale = parseFloat(btn.dataset.scale);
+        this.app.detonation.setTacticalScale(scale);
+      });
+    });
+
+    // Pin Markers Toggle
+    const btnPins = document.getElementById('btn-toggle-pins');
+    if (btnPins) {
+      let pinsOn = true;
+      btnPins.addEventListener('click', () => {
+        pinsOn = !pinsOn;
+        this.app.earth.setPinsVisible(pinsOn);
+        btnPins.textContent = pinsOn ? '📍 PINS: ON' : '📍 PINS: OFF';
+        btnPins.classList.toggle('active', pinsOn);
+      });
+    }
+
+    // Mushroom Cloud FX Toggle
+    const btnCloud = document.getElementById('btn-toggle-cloud');
+    if (btnCloud) {
+      let cloudOn = true;
+      btnCloud.addEventListener('click', () => {
+        cloudOn = !cloudOn;
+        this.app.detonation.setMushroomCloudVisible(cloudOn);
+        btnCloud.textContent = cloudOn ? '☁️ CLOUD: ON' : '☁️ CLOUD: OFF';
+        btnCloud.classList.toggle('active', cloudOn);
+      });
+    }
   }
 
   populatePresets() {

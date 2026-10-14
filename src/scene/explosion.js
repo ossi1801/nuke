@@ -12,10 +12,11 @@ export class NuclearDetonation {
     this.elapsedTime = 0;
     this.timeScale = 1.0;
     this.effectsData = null;
-    this.tacticalBoost = true; // Boost visibility when viewing from full orbit
+    this.tacticalScaleMultiplier = 1.0; // 1x = True Physics, 5x = Regional, 15x = Orbit Boost
+    this.showMushroomCloud = true;
 
     // Detonation flash light
-    this.flashLight = new THREE.PointLight(0xffffff, 0, 800);
+    this.flashLight = new THREE.PointLight(0xffffff, 0, 1000);
     this.group.add(this.flashLight);
 
     // Target Preview Blast Rings (shown before launch / during target selection)
@@ -23,7 +24,7 @@ export class NuclearDetonation {
     this.group.add(this.targetRingsGroup);
     this.previewZoneMeshes = [];
 
-    // Active Detonation Blast Rings
+    // Active Detonation Blast Rings (persist permanently after detonation)
     this.ringsGroup = new THREE.Group();
     this.group.add(this.ringsGroup);
     this.zoneMeshes = [];
@@ -50,6 +51,21 @@ export class NuclearDetonation {
     this.normal = new THREE.Vector3(0, 1, 0);
   }
 
+  setTacticalScale(scale) {
+    this.tacticalScaleMultiplier = Math.max(0.5, scale);
+    // Refresh preview or active detonation rings
+    if (this.isActive && this.targetLatLon) {
+      this.refreshActiveRings();
+    } else if (this.targetLatLon) {
+      this.updateTargetPreview(this.targetLatLon, this.yieldKt || 475, this.isAirburst !== false);
+    }
+  }
+
+  setMushroomCloudVisible(visible) {
+    this.showMushroomCloud = visible;
+    this.mushroomGroup.visible = visible && this.isActive;
+  }
+
   createFireballMesh() {
     const geo = new THREE.SphereGeometry(1, 32, 32);
     const mat = new THREE.MeshBasicMaterial({
@@ -61,12 +77,12 @@ export class NuclearDetonation {
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.visible = false;
-    mesh.renderOrder = 25;
+    mesh.renderOrder = 30;
     return mesh;
   }
 
   createShockwaveMesh() {
-    const geo = new THREE.RingGeometry(0.85, 1.25, 64);
+    const geo = new THREE.RingGeometry(0.85, 1.35, 64);
     const mat = new THREE.MeshBasicMaterial({
       color: 0x88f0ff,
       side: THREE.DoubleSide,
@@ -77,21 +93,21 @@ export class NuclearDetonation {
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.visible = false;
-    mesh.renderOrder = 20;
+    mesh.renderOrder = 25;
     return mesh;
   }
 
   createMushroomCloudStructure() {
     // 1. Column Stem: stacked turbulent condensation puffs
     this.stemSpheres = [];
-    const stemCount = 16;
+    const stemCount = 14;
     for (let i = 0; i < stemCount; i++) {
       const geo = new THREE.SphereGeometry(0.5, 16, 16);
       const mat = new THREE.MeshStandardMaterial({
-        color: 0x241508,
+        color: 0x221206,
         roughness: 0.9,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.82,
         depthWrite: false
       });
       const sphere = new THREE.Mesh(geo, mat);
@@ -103,10 +119,10 @@ export class NuclearDetonation {
     // 2. Torus Anvil Cap (Stratospheric expansion)
     const capGeo = new THREE.TorusGeometry(1.2, 0.65, 16, 36);
     const capMat = new THREE.MeshStandardMaterial({
-      color: 0x221307,
+      color: 0x201005,
       roughness: 0.85,
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.82,
       depthWrite: false
     });
     this.cloudCap = new THREE.Mesh(capGeo, capMat);
@@ -146,9 +162,9 @@ export class NuclearDetonation {
   }
 
   /**
-   * Generates a curved spherical ground cap disk strictly conforming to Earth's curvature.
-   * Constructed in local tangent space at the epicenter so scaling expands radially
-   * outward along the surface without core displacement.
+   * Generates a curved spherical ground zone conforming to Earth's curvature.
+   * Uses both a vibrant semi-translucent disk AND a bold 3D ribbon mesh
+   * so the border is thick, glowing, and clearly visible from any camera distance.
    */
   createSphericalGroundZone(epicenterVec, radiusKm, fillColor, strokeColor, layerOffset = 0.08, isPreview = false) {
     const group = new THREE.Group();
@@ -159,38 +175,33 @@ export class NuclearDetonation {
     const quat = new THREE.Quaternion().setFromUnitVectors(up, normal);
     group.quaternion.copy(quat);
 
-    // Angular radius theta in radians on Earth sphere
-    const theta = Math.max(0.0001, radiusKm / EARTH_RADIUS_KM);
+    // Apply tactical scale multiplier to visual display
+    const visualRadiusKm = radiusKm * this.tacticalScaleMultiplier;
+    const theta = Math.max(0.0003, visualRadiusKm / EARTH_RADIUS_KM);
     const R = GLOBE_RADIUS + layerOffset;
 
     const segments = 96;
     const positions = [];
-    const perimeterPoints = [];
-
-    // Center point (local coordinates: origin (0, 0, 0))
-    positions.push(0, 0, 0);
-
     const sinTheta = Math.sin(theta);
     const cosTheta = Math.cos(theta);
 
+    // Center point (local coords)
+    positions.push(0, 0, 0);
+
     for (let i = 0; i <= segments; i++) {
       const phi = (i / segments) * Math.PI * 2;
-      // In local coordinates: normal is +Z. Drop along -Z according to spherical curvature
       const lx = R * sinTheta * Math.cos(phi);
       const ly = R * sinTheta * Math.sin(phi);
-      const lz = R * (cosTheta - 1.0); // Conforms to spherical curvature down from the tangent
-
+      const lz = R * (cosTheta - 1.0);
       positions.push(lx, ly, lz);
-      perimeterPoints.push(new THREE.Vector3(lx, ly, lz));
     }
 
-    // Triangular fan indices
+    // Disk geometry
     const indices = [];
     for (let i = 1; i <= segments; i++) {
       indices.push(0, i, i + 1);
     }
 
-    // Disk geometry
     const diskGeo = new THREE.BufferGeometry();
     diskGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     diskGeo.setIndex(indices);
@@ -199,7 +210,7 @@ export class NuclearDetonation {
     const diskMat = new THREE.MeshBasicMaterial({
       color: fillColor,
       transparent: true,
-      opacity: isPreview ? 0.18 : 0.28,
+      opacity: isPreview ? 0.42 : 0.58, // Bold, high-visibility opacity
       side: THREE.DoubleSide,
       depthWrite: false,
       polygonOffset: true,
@@ -210,51 +221,59 @@ export class NuclearDetonation {
     diskMesh.renderOrder = 10;
     group.add(diskMesh);
 
-    // Glowing border line
-    const borderGeo = new THREE.BufferGeometry().setFromPoints(perimeterPoints);
-    const borderMat = new THREE.LineBasicMaterial({
-      color: strokeColor,
-      transparent: true,
-      opacity: isPreview ? 0.8 : 0.95,
-      linewidth: isPreview ? 2 : 3,
-      depthWrite: false
-    });
-    const borderLine = new THREE.Line(borderGeo, borderMat);
-    borderLine.renderOrder = 11;
-    group.add(borderLine);
+    // BOLD 3D Ribbon Border Mesh (gives real visual width regardless of WebGL driver line limits)
+    const ribbonPositions = [];
+    const ribbonIndices = [];
+    // Dynamic border thickness in radians (minimum angular width so it pops from space)
+    const halfWidthAngle = Math.max(0.0008, theta * 0.05);
+    const tInner = Math.max(0.0001, theta - halfWidthAngle);
+    const tOuter = theta + halfWidthAngle;
 
-    // Cardinal tick markings
-    const tickPoints = [];
-    const tickLen = R * sinTheta * 0.08;
-    for (let k = 0; k < 4; k++) {
-      const angle = (k * Math.PI) / 2;
-      const tx1 = R * sinTheta * Math.cos(angle);
-      const ty1 = R * sinTheta * Math.sin(angle);
-      const tz1 = R * (cosTheta - 1.0);
+    for (let i = 0; i <= segments; i++) {
+      const phi = (i / segments) * Math.PI * 2;
+      const cosP = Math.cos(phi);
+      const sinP = Math.sin(phi);
 
-      const tx2 = (R * sinTheta + tickLen) * Math.cos(angle);
-      const ty2 = (R * sinTheta + tickLen) * Math.sin(angle);
-      const tz2 = R * (cosTheta - 1.0);
+      const ix = R * Math.sin(tInner) * cosP;
+      const iy = R * Math.sin(tInner) * sinP;
+      const iz = R * (Math.cos(tInner) - 1.0);
+      ribbonPositions.push(ix, iy, iz);
 
-      tickPoints.push(new THREE.Vector3(tx1, ty1, tz1));
-      tickPoints.push(new THREE.Vector3(tx2, ty2, tz2));
+      const ox = R * Math.sin(tOuter) * cosP;
+      const oy = R * Math.sin(tOuter) * sinP;
+      const oz = R * (Math.cos(tOuter) - 1.0);
+      ribbonPositions.push(ox, oy, oz);
     }
-    const tickGeo = new THREE.BufferGeometry().setFromPoints(tickPoints);
-    const tickMat = new THREE.LineBasicMaterial({
+
+    for (let i = 0; i < segments; i++) {
+      const idx = i * 2;
+      ribbonIndices.push(idx, idx + 1, idx + 2);
+      ribbonIndices.push(idx + 1, idx + 3, idx + 2);
+    }
+
+    const ribbonGeo = new THREE.BufferGeometry();
+    ribbonGeo.setAttribute('position', new THREE.Float32BufferAttribute(ribbonPositions, 3));
+    ribbonGeo.setIndex(ribbonIndices);
+    ribbonGeo.computeVertexNormals();
+
+    const ribbonMat = new THREE.MeshBasicMaterial({
       color: strokeColor,
+      side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.75,
-      depthWrite: false
+      opacity: 0.98,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -6
     });
-    const tickLines = new THREE.LineSegments(tickGeo, tickMat);
-    tickLines.renderOrder = 11;
-    group.add(tickLines);
+    const ribbonMesh = new THREE.Mesh(ribbonGeo, ribbonMat);
+    ribbonMesh.renderOrder = 12;
+    group.add(ribbonMesh);
 
     return {
       group,
       diskMesh,
-      borderLine,
-      tickLines,
+      ribbonMesh,
       theta,
       radiusKm,
       fillColor,
@@ -264,9 +283,12 @@ export class NuclearDetonation {
 
   /**
    * Updates real-time Target Assessment Blast Preview on the globe
-   * Called whenever user changes target coords, yield slider, or burst type
    */
   updateTargetPreview(targetLatLon, yieldKt, isAirburst = true) {
+    this.targetLatLon = targetLatLon;
+    this.yieldKt = yieldKt;
+    this.isAirburst = isAirburst;
+
     this.clearTargetPreview();
     const effects = calculateNuclearEffects(yieldKt, isAirburst);
     const p = latLonToVector3(targetLatLon.lat, targetLatLon.lon, GLOBE_RADIUS);
@@ -276,8 +298,7 @@ export class NuclearDetonation {
     const sortedZones = [...effects.zones].sort((a, b) => b.radiusKm - a.radiusKm);
 
     sortedZones.forEach((zone, idx) => {
-      // Offset slightly above surface to prevent any z-fighting
-      const offset = 0.06 + (sortedZones.length - idx) * 0.015;
+      const offset = 0.08 + (sortedZones.length - idx) * 0.02;
       const zoneObj = this.createSphericalGroundZone(
         targetVec,
         zone.radiusKm,
@@ -291,7 +312,10 @@ export class NuclearDetonation {
       this.previewZoneMeshes.push(zoneObj);
     });
 
-    this.targetRingsGroup.visible = true;
+    // If not currently detonating, keep target preview visible
+    if (!this.isActive) {
+      this.targetRingsGroup.visible = true;
+    }
   }
 
   clearTargetPreview() {
@@ -306,6 +330,31 @@ export class NuclearDetonation {
       }
     }
     this.previewZoneMeshes = [];
+  }
+
+  /**
+   * Reconstructs active detonation rings (useful when tactical scale is toggled)
+   */
+  refreshActiveRings() {
+    if (!this.effectsData) return;
+    this.clearBlastRings();
+
+    const sortedZones = [...this.effectsData.zones].sort((a, b) => b.radiusKm - a.radiusKm);
+    sortedZones.forEach((zone, idx) => {
+      const offset = 0.1 + (sortedZones.length - idx) * 0.02;
+      const zoneObj = this.createSphericalGroundZone(
+        this.epicenter,
+        zone.radiusKm,
+        zone.color,
+        zone.borderColor,
+        offset,
+        false
+      );
+      zoneObj.zone = zone;
+      zoneObj.group.scale.set(1.0, 1.0, 1.0);
+      this.ringsGroup.add(zoneObj.group);
+      this.zoneMeshes.push(zoneObj);
+    });
   }
 
   /**
@@ -326,14 +375,20 @@ export class NuclearDetonation {
     this.epicenter = new THREE.Vector3(p.x, p.y, p.z);
     this.normal = this.epicenter.clone().normalize();
 
+    // HIDE TARGET PIN AUTOMATICALLY SO IT DOES NOT BLOCK THE EXPLOSION
+    if (window.app && window.app.earth) {
+      window.app.earth.setTargetPinVisible(false);
+    }
+
     // Orient mushroom cloud and flash to epicenter
     this.flashLight.position.copy(this.epicenter.clone().add(this.normal.clone().multiplyScalar(4)));
-    this.flashLight.intensity = 300;
+    this.flashLight.intensity = 500;
     this.flashLight.color.setHex(0xffffff);
 
     // Setup 3D Fireball
     const fireballZone = this.effectsData.zones.find(z => z.id === 'fireball') || this.effectsData.zones[0];
-    this.fireballMaxUnits = fireballZone.radiusKm * KM_TO_UNITS;
+    const visualFireballKm = fireballZone.radiusKm * this.tacticalScaleMultiplier;
+    this.fireballMaxUnits = Math.max(0.2, visualFireballKm * KM_TO_UNITS);
     this.fireballMesh.position.copy(this.epicenter.clone().add(this.normal.clone().multiplyScalar(this.fireballMaxUnits * 0.6)));
     this.fireballMesh.scale.set(0.01, 0.01, 0.01);
     this.fireballMesh.material.opacity = 1.0;
@@ -341,28 +396,30 @@ export class NuclearDetonation {
     this.fireballMesh.visible = true;
 
     // Setup Shockwave Ring
-    this.shockwaveMesh.position.copy(this.epicenter.clone().add(this.normal.clone().multiplyScalar(0.2)));
+    this.shockwaveMesh.position.copy(this.epicenter.clone().add(this.normal.clone().multiplyScalar(0.25)));
     const up = new THREE.Vector3(0, 0, 1);
     this.shockwaveMesh.quaternion.setFromUnitVectors(up, this.normal);
     this.shockwaveMesh.scale.set(0.01, 0.01, 0.01);
     this.shockwaveMesh.visible = true;
     const maxZone = this.effectsData.zones.reduce((max, z) => z.radiusKm > max.radiusKm ? z : max, this.effectsData.zones[0]);
-    this.shockwaveMaxKm = maxZone.radiusKm * 1.25;
+    this.shockwaveMaxKm = maxZone.radiusKm * this.tacticalScaleMultiplier * 1.25;
 
     // Setup Mushroom Cloud
-    this.cloudHeightUnits = this.effectsData.mushroomCloud.heightKm * KM_TO_UNITS;
-    this.cloudCapUnits = (this.effectsData.mushroomCloud.capDiameterKm / 2) * KM_TO_UNITS;
+    const visualCloudHeightKm = this.effectsData.mushroomCloud.heightKm * Math.min(2.0, Math.sqrt(this.tacticalScaleMultiplier));
+    const visualCapKm = (this.effectsData.mushroomCloud.capDiameterKm / 2) * Math.min(2.0, Math.sqrt(this.tacticalScaleMultiplier));
+    this.cloudHeightUnits = visualCloudHeightKm * KM_TO_UNITS;
+    this.cloudCapUnits = visualCapKm * KM_TO_UNITS;
     this.mushroomGroup.position.copy(this.epicenter);
     const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.normal);
     this.mushroomGroup.quaternion.copy(quat);
-    this.mushroomGroup.visible = true;
+    this.mushroomGroup.visible = this.showMushroomCloud;
 
     // Build Ground Blast Rings for Detonation
     this.clearBlastRings();
     const sortedZones = [...this.effectsData.zones].sort((a, b) => b.radiusKm - a.radiusKm);
 
     sortedZones.forEach((zone, idx) => {
-      const offset = 0.08 + (sortedZones.length - idx) * 0.015;
+      const offset = 0.1 + (sortedZones.length - idx) * 0.02;
       const zoneObj = this.createSphericalGroundZone(
         this.epicenter,
         zone.radiusKm,
@@ -379,7 +436,7 @@ export class NuclearDetonation {
     });
 
     // Create Ground Zero Permanent Thermal Scorch Decal
-    this.createThermalScorchDecal(this.epicenter, fireballZone.radiusKm * 1.5);
+    this.createThermalScorchDecal(this.epicenter, fireballZone.radiusKm * 1.5 * this.tacticalScaleMultiplier);
 
     // Hide target preview while detonation FX is playing
     this.targetRingsGroup.visible = false;
@@ -396,14 +453,14 @@ export class NuclearDetonation {
     const up = new THREE.Vector3(0, 0, 1);
     group.quaternion.setFromUnitVectors(up, normal);
 
-    const theta = Math.max(0.0001, radiusKm / EARTH_RADIUS_KM);
-    const R = GLOBE_RADIUS + 0.04;
+    const theta = Math.max(0.0003, radiusKm / EARTH_RADIUS_KM);
+    const R = GLOBE_RADIUS + 0.05;
     const segments = 48;
     const positions = [];
     const colors = [];
 
     positions.push(0, 0, 0);
-    colors.push(0.05, 0.02, 0.01); // charred charcoal core
+    colors.push(0.04, 0.02, 0.01);
 
     const sinTheta = Math.sin(theta);
     const cosTheta = Math.cos(theta);
@@ -432,7 +489,7 @@ export class NuclearDetonation {
     const mat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       side: THREE.DoubleSide,
       depthWrite: false
     });
@@ -479,16 +536,31 @@ export class NuclearDetonation {
     this.mushroomGroup.visible = false;
     this.clearBlastRings();
     this.clearScorch();
+
+    // Restore target preview and target pin
+    if (window.app && window.app.earth) {
+      window.app.earth.setTargetPinVisible(true);
+    }
     this.targetRingsGroup.visible = true;
   }
 
   update(deltaSec) {
+    const pulseTime = performance.now() * 0.003;
+
     // Pulse target preview rings gently when idle/targeting
     if (this.targetRingsGroup.visible && this.previewZoneMeshes.length > 0) {
-      const pulseTime = performance.now() * 0.003;
       this.previewZoneMeshes.forEach((item, idx) => {
-        if (item.borderLine && item.borderLine.material) {
-          item.borderLine.material.opacity = 0.7 + 0.3 * Math.sin(pulseTime + idx * 0.8);
+        if (item.ribbonMesh && item.ribbonMesh.material) {
+          item.ribbonMesh.material.opacity = 0.75 + 0.25 * Math.sin(pulseTime + idx * 0.8);
+        }
+      });
+    }
+
+    // Active blast rings pulse gently after detonation so they REMAIN VIBRANT & PROMINENT
+    if (this.zoneMeshes.length > 0) {
+      this.zoneMeshes.forEach((item, idx) => {
+        if (item.ribbonMesh && item.ribbonMesh.material) {
+          item.ribbonMesh.material.opacity = 0.82 + 0.18 * Math.sin(pulseTime * 1.5 + idx * 0.6);
         }
       });
     }
@@ -500,14 +572,14 @@ export class NuclearDetonation {
 
     // 1. Nuclear Flash (0s - 2.5s)
     if (t < 0.12) {
-      this.flashLight.intensity = 400;
+      this.flashLight.intensity = 500;
       this.flashLight.color.setHex(0xffffff);
     } else if (t < 2.0) {
       const flashFade = 1.0 - (t - 0.12) / 1.88;
-      this.flashLight.intensity = 400 * Math.pow(flashFade, 2.5);
+      this.flashLight.intensity = 500 * Math.pow(flashFade, 2.5);
       this.flashLight.color.setHex(0xffeebb);
     } else {
-      this.flashLight.intensity = Math.max(0, 20 * (1.0 - (t - 2.0) / 6.0));
+      this.flashLight.intensity = Math.max(0, 25 * (1.0 - (t - 2.0) / 6.0));
       this.flashLight.color.setHex(0xff4400);
     }
 
@@ -546,19 +618,20 @@ export class NuclearDetonation {
     }
 
     // 4. Ground Blast Zones Growth & Propagation
-    // Rings expand radially from epicenter along the surface as the blast front arrives
-    const shockFrontKm = Math.pow(Math.min(1.0, t / 4.0), 0.7) * this.shockwaveMaxKm;
+    // Rings expand radially from epicenter along the surface, then LOCK AT 1.0 TO DISPLAY FULL RADIUS PERMANENTLY!
+    const shockFrontKm = Math.pow(Math.min(1.0, t / 3.0), 0.65) * this.shockwaveMaxKm;
     this.zoneMeshes.forEach((item) => {
-      if (shockFrontKm >= item.zone.radiusKm * 0.4) {
+      if (shockFrontKm >= item.zone.radiusKm * this.tacticalScaleMultiplier * 0.25) {
         const currentScale = item.group.scale.x;
         const targetScale = 1.0;
-        const newScale = Math.min(targetScale, currentScale + deltaSec * 3.5 * this.timeScale);
+        const newScale = Math.min(targetScale, currentScale + deltaSec * 4.5 * this.timeScale);
         item.group.scale.set(newScale, newScale, 1.0);
       }
     });
 
     // 5. Mushroom Cloud Growth (0.4s - 18s)
-    if (t > 0.4) {
+    if (t > 0.4 && this.showMushroomCloud) {
+      this.mushroomGroup.visible = true;
       const cloudRise = Math.min(1.0, Math.pow((t - 0.4) / 9.0, 0.68));
       const currentHeight = this.cloudHeightUnits * cloudRise;
       const currentCapWidth = this.cloudCapUnits * cloudRise;
@@ -598,6 +671,8 @@ export class NuclearDetonation {
       } else {
         this.wilsonRing.visible = false;
       }
+    } else {
+      this.mushroomGroup.visible = false;
     }
   }
 }
