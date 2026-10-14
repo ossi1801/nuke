@@ -1,0 +1,17 @@
+{
+  "name": "nuke-simulation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp src/style.css style.css && cp app.js dist/app.js && cp style.css dist/style.css",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
