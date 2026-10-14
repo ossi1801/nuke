@@ -698,3 +698,382 @@ body, html {
   border-radius: 3px;
   cursor: pointer;
 }
+
+
+/* SVG VECTOR ICONS */
+.hud-svg {
+  display: inline-block;
+  vertical-align: middle;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+
+.coord-tag .hud-svg {
+  margin-right: 4px;
+  color: var(--accent-cyan);
+}
+
+.hud-btn-icon .hud-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pick-btn .hud-svg,
+.action-btn .hud-svg,
+.cam-btn .hud-svg,
+.mode-btn .hud-svg {
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+}
+
+/* MODE SWITCHER */
+.mode-switch-group {
+  display: flex;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.mode-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  color: var(--text-main);
+  background: rgba(0, 240, 255, 0.1);
+}
+
+.mode-btn.active {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.mode-btn.doomsday-tab.active {
+  background: rgba(255, 34, 51, 0.25);
+  border-color: #ff2233;
+  color: #ff4455;
+  box-shadow: 0 0 14px rgba(255, 34, 51, 0.5);
+  animation: pulse-red 2s infinite ease-in-out;
+}
+
+.defcon-badge.doomsday-active {
+  background: #ff5500;
+  box-shadow: 0 0 14px rgba(255, 85, 0, 0.7);
+}
+
+.defcon-badge.apocalyptic {
+  background: #990000;
+  color: #ffcccc;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.9);
+  animation: pulse-apocalyptic 0.8s infinite alternate;
+}
+
+@keyframes pulse-apocalyptic {
+  from { filter: drop-shadow(0 0 4px #ff0000); transform: scale(1); }
+  to { filter: drop-shadow(0 0 16px #ff0000); transform: scale(1.05); }
+}
+
+.mode-container {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 15px;
+  height: 100%;
+}
+
+.mode-container.hidden {
+  display: none !important;
+}
+
+/* DOOMSDAY WAR ROOM PANEL */
+.doomsday-panel {
+  border-color: rgba(255, 51, 68, 0.3);
+}
+
+.doomsday-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(90deg, rgba(255, 34, 51, 0.25), rgba(0, 0, 0, 0.5));
+  border-left: 4px solid #ff2233;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.doomsday-alert-banner .hud-svg {
+  width: 26px;
+  height: 26px;
+  color: #ff3344;
+  flex-shrink: 0;
+}
+
+.doomsday-alert-banner strong {
+  display: block;
+  font-size: 11px;
+  color: #ff4455;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.doomsday-alert-banner span {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.arsenal-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.arsenal-metric {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 51, 68, 0.25);
+  border-radius: 4px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.metric-label {
+  display: block;
+  font-size: 8.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.metric-num {
+  font-size: 14px;
+  color: var(--text-main);
+  letter-spacing: 1px;
+}
+
+.arsenal-roster-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.nation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 8px;
+  border-radius: 3px;
+  border-left: 3px solid #666;
+}
+
+.nation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nation-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.nation-sub {
+  font-size: 8.5px;
+  color: var(--text-muted);
+}
+
+.nation-count {
+  text-align: right;
+}
+
+.nation-count strong {
+  font-size: 12px;
+  color: var(--accent-cyan);
+}
+
+.nation-count span {
+  font-size: 8.5px;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+
+.doomsday-btn-fire {
+  background: linear-gradient(135deg, #cc0000 0%, #ff3344 100%);
+  color: #ffffff;
+  border: 1px solid #ff6677;
+  font-weight: 800;
+  box-shadow: 0 0 16px rgba(255, 34, 51, 0.6);
+  padding: 12px;
+  letter-spacing: 2px;
+}
+
+.doomsday-btn-fire:hover {
+  background: linear-gradient(135deg, #ee0000 0%, #ff5566 100%);
+  box-shadow: 0 0 24px rgba(255, 34, 51, 0.9);
+}
+
+.doomsday-live-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tele-item {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tele-item.launched { border: 1px solid rgba(0, 200, 255, 0.3); }
+.tele-item.inflight { border: 1px solid rgba(255, 170, 0, 0.3); }
+.tele-item.detonated { border: 1px solid rgba(255, 34, 51, 0.4); }
+
+.tele-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tele-val {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.tele-item.launched .tele-val { color: var(--accent-cyan); }
+.tele-item.inflight .tele-val { color: var(--accent-amber); }
+.tele-item.detonated .tele-val { color: #ff3344; }
+
+.impact-cards-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.impact-card {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.impact-card.casualties {
+  border-left: 3px solid #ff2233;
+}
+
+.impact-card.megatons {
+  border-left: 3px solid #ff8800;
+}
+
+.impact-card.winter {
+  border-left: 3px solid #00c8ff;
+}
+
+.impact-card.biosphere {
+  border-left: 3px solid #00ff66;
+}
+
+.impact-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.impact-val {
+  font-size: 16px;
+  color: var(--text-main);
+  letter-spacing: 1px;
+}
+
+.impact-sub {
+  font-size: 8.5px;
+  color: var(--text-muted);
+}
+
+.biosphere-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.bio-bar-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5px;
+}
+
+.strike-status-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5px;
+}
+
+.strike-status-table th {
+  text-align: left;
+  padding: 4px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.strike-status-table td {
+  padding: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nation-badge {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.hud-tag.danger {
+  background: rgba(255, 34, 51, 0.2);
+  border-color: #ff3344;
+  color: #ff4455;
+}

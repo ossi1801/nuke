@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EarthGlobe, GLOBE_RADIUS, KM_TO_UNITS } from './scene/earth.js';
 import { MissileSystem } from './scene/missile.js';
 import { NuclearDetonation } from './scene/explosion.js';
+import { DoomsdaySystem } from './scene/doomsdaySystem.js';
 import { SimulationHUD } from './ui/hud.js';
 import { sound } from './audio/sound.js';
 import { vector3ToLatLon, latLonToVector3 } from './physics/nuclearPhysics.js';
@@ -11,9 +12,10 @@ class NuclearSimulationApp {
   constructor() {
     this.timescale = 1.0;
     this.isPaused = false;
-    this.cameraMode = 'orbit'; // 'orbit' | 'missile' | 'target' | 'blast'
+    this.cameraMode = 'orbit'; // 'orbit' | 'missile' | 'salvo' | 'target' | 'city' | 'blast'
     this.currentYieldKt = 475;
     this.isAirburst = true;
+    this.simulationMode = 'single'; // 'single' | 'doomsday'
 
     this.launchLatLon = { lat: 48.41, lon: -101.35 };
     this.targetLatLon = { lat: 55.75, lon: 37.62 };
@@ -98,13 +100,10 @@ class NuclearSimulationApp {
 
       const tint = Math.random();
       if (tint > 0.8) {
-        // Cyan / bluish star
         colors[i * 3] = 0.7; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 1.0;
       } else if (tint > 0.6) {
-        // Amber star
         colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.8; colors[i * 3 + 2] = 0.6;
       } else {
-        // Pure white
         colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
       }
     }
@@ -127,6 +126,14 @@ class NuclearSimulationApp {
     this.earth = new EarthGlobe(this.scene);
     this.missileSystem = new MissileSystem(this.scene);
     this.detonation = new NuclearDetonation(this.scene);
+    this.doomsday = new DoomsdaySystem(this.scene);
+
+    // Wire up Doomsday telemetry updates to the HUD
+    this.doomsday.onTelemetryUpdate = (stats) => {
+      if (this.hud) {
+        this.hud.updateDoomsdayStats(stats);
+      }
+    };
   }
 
   initInteraction() {
@@ -151,6 +158,35 @@ class NuclearSimulationApp {
     });
   }
 
+  setSimulationMode(mode) {
+    this.simulationMode = mode;
+    if (mode === 'doomsday') {
+      // Hide single missile target preview
+      this.detonation.targetRingsGroup.visible = false;
+      this.earth.launchPin.visible = false;
+      this.earth.targetPin.visible = false;
+      this.missileSystem.missileMesh.visible = false;
+      this.missileSystem.trailLine.visible = false;
+      if (this.missileSystem.trajectoryCurveMesh) {
+        this.missileSystem.trajectoryCurveMesh.visible = false;
+      }
+    } else {
+      // Restore single missile elements
+      this.detonation.targetRingsGroup.visible = true;
+      this.earth.launchPin.visible = true;
+      this.earth.targetPin.visible = true;
+      this.detonation.updateTargetPreview(this.targetLatLon, this.currentYieldKt, this.isAirburst);
+    }
+  }
+
+  startDoomsdayExchange() {
+    this.doomsday.startExchange();
+  }
+
+  resetDoomsdayExchange() {
+    this.doomsday.reset();
+  }
+
   setLaunchAndTarget(launch, target) {
     this.launchLatLon = { ...launch };
     this.targetLatLon = { ...target };
@@ -166,10 +202,12 @@ class NuclearSimulationApp {
     this.timescale = ts;
     this.detonation.timeScale = ts;
     this.missileSystem.speedMultiplier = ts;
+    this.doomsday.timeScale = ts;
   }
 
   togglePause() {
     this.isPaused = !this.isPaused;
+    this.doomsday.isPaused = this.isPaused;
     return this.isPaused;
   }
 
@@ -181,10 +219,6 @@ class NuclearSimulationApp {
     this.missileSystem.launch((targetCoords) => {
       this.onMissileImpact(targetCoords);
     });
-
-    if (this.cameraMode === 'orbit') {
-      // Auto follow or let user observe
-    }
   }
 
   onMissileImpact(targetCoords) {
@@ -216,6 +250,11 @@ class NuclearSimulationApp {
     if (mode === 'orbit') {
       this.controls.enabled = true;
       this.controls.target.set(0, 0, 0);
+    } else if (mode === 'salvo') {
+      this.controls.enabled = true;
+      // High orbital overview of the northern hemisphere / strategic exchange arcs
+      this.camera.position.set(0, 190, 220);
+      this.controls.target.set(0, 0, 0);
     } else if (mode === 'target' || mode === 'city' || mode === 'blast') {
       this.controls.enabled = true;
       const targetVec = latLonToVector3(this.targetLatLon.lat, this.targetLatLon.lon, GLOBE_RADIUS);
@@ -225,17 +264,16 @@ class NuclearSimulationApp {
       let distance;
       let camPos;
       if (mode === 'city') {
-        // Extreme close-up tactical view (~2.5 units = ~160km above surface) angled for 3D mushroom cloud inspection
         distance = 2.5;
         let tangent = new THREE.Vector3(0, 1, 0).cross(normal);
         if (tangent.lengthSq() < 0.001) tangent = new THREE.Vector3(1, 0, 0).cross(normal);
         tangent.normalize();
         camPos = normal.clone().multiplyScalar(GLOBE_RADIUS + distance).add(tangent.clone().multiplyScalar(1.2));
       } else if (mode === 'target') {
-        distance = 25; // Regional tactical view
+        distance = 25;
         camPos = normal.clone().multiplyScalar(GLOBE_RADIUS + distance);
       } else {
-        distance = 60; // Wide blast overview
+        distance = 60;
         camPos = normal.clone().multiplyScalar(GLOBE_RADIUS + distance);
       }
       
@@ -250,7 +288,6 @@ class NuclearSimulationApp {
       const missilePos = this.missileSystem.missileMesh.position;
       const earthNormal = missilePos.clone().normalize();
 
-      // Chase camera: behind the missile along velocity direction, slightly elevated
       const lookAhead = this.missileSystem.getPositionAt(Math.min(1, this.missileSystem.progress + 0.02));
       const flightDir = lookAhead.clone().sub(missilePos).normalize();
 
@@ -259,6 +296,12 @@ class NuclearSimulationApp {
 
       this.camera.position.lerp(targetCamPos, 0.1);
       this.camera.lookAt(missilePos);
+    } else if (this.cameraMode === 'salvo' && this.doomsday.isRunning) {
+      // Dynamic salvo camera tracking
+      const salvoCenter = this.doomsday.getActiveSalvoCenter();
+      if (salvoCenter) {
+        this.controls.target.lerp(salvoCenter, 0.05);
+      }
     }
   }
 
@@ -268,17 +311,20 @@ class NuclearSimulationApp {
     const rawDelta = Math.min(this.clock.getDelta(), 0.1);
     const simDelta = rawDelta * (this.isPaused ? 0 : this.timescale);
 
-    // Update Globe (pass camera for micro-detail distance shader)
+    // Update Globe
     this.earth.update(simDelta, this.camera);
 
-    // Update Missile
-    this.missileSystem.update(simDelta);
-    if (this.missileSystem.isFlying) {
-      this.hud.updateProgress(this.missileSystem.progress);
+    // Update Single Missile System
+    if (this.simulationMode === 'single') {
+      this.missileSystem.update(simDelta);
+      if (this.missileSystem.isFlying) {
+        this.hud.updateProgress(this.missileSystem.progress);
+      }
+      this.detonation.update(simDelta);
     }
 
-    // Update Detonation
-    this.detonation.update(simDelta);
+    // Update Doomsday System
+    this.doomsday.update(simDelta);
 
     // Update Camera
     this.updateCamera();

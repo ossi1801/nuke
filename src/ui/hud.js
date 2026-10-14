@@ -1,9 +1,12 @@
 import { MISSILE_PRESETS, PRESET_LOCATIONS, calculateNuclearEffects } from '../physics/nuclearPhysics.js';
+import { NUCLEAR_NATIONS, TOTAL_GLOBAL_ROCKETS } from '../physics/doomsdayData.js';
+import { ICONS } from './icons.js';
 import { sound } from '../audio/sound.js';
 
 export class SimulationHUD {
   constructor(app) {
     this.app = app;
+    this.currentMode = 'single'; // 'single' | 'doomsday'
     this.pickingMode = null; // 'launch' | 'target' | null
     this.initDOM();
   }
@@ -14,11 +17,23 @@ export class SimulationHUD {
       <!-- Top Navigation & Status -->
       <header class="hud-header">
         <div class="hud-brand">
-          <div class="defcon-badge">DEFCON 1</div>
+          <div class="defcon-badge" id="defcon-indicator">DEFCON 1</div>
           <div>
-            <h1>THERMONUCLEAR BALLISTIC SIMULATOR</h1>
-            <span class="hud-sub">PHYSICALLY SCALED GLASSTONE-DOLAN & NUKEMAP EFFECT RADIUS ENGINE</span>
+            <h1>THERMONUCLEAR STRATEGIC SIMULATOR</h1>
+            <span class="hud-sub">PHYSICALLY SCALED GLASSTONE-DOLAN & GLOBAL DOOMSDAY ARSENAL ENGINE</span>
           </div>
+        </div>
+
+        <!-- Mode Switcher -->
+        <div class="mode-switch-group">
+          <button class="mode-btn active" id="btn-mode-single">
+            ${ICONS.MISSILE_LAUNCH}
+            <span>TACTICAL STRIKE</span>
+          </button>
+          <button class="mode-btn doomsday-tab" id="btn-mode-doomsday">
+            ${ICONS.RADIATION}
+            <span>GLOBAL DOOMSDAY</span>
+          </button>
         </div>
 
         <div class="hud-top-controls">
@@ -32,158 +47,325 @@ export class SimulationHUD {
               <button class="ts-btn" data-ts="5">5×</button>
               <button class="ts-btn" data-ts="20">20×</button>
               <button class="ts-btn" data-ts="50">50×</button>
-              <button class="ts-btn pause-btn" id="btn-pause">⏸</button>
+              <button class="ts-btn pause-btn" id="btn-pause" title="Pause / Resume">${ICONS.PAUSE}</button>
             </div>
           </div>
 
           <!-- Audio & Fullscreen -->
-          <button id="btn-audio" class="hud-btn-icon" title="Toggle Audio">🔊</button>
-          <button id="btn-help" class="hud-btn-icon" title="Toggle Manual">ℹ️</button>
+          <button id="btn-audio" class="hud-btn-icon" title="Toggle Audio">${ICONS.VOLUME}</button>
+          <button id="btn-help" class="hud-btn-icon" title="Toggle Strategic Manual">${ICONS.INFO}</button>
         </div>
       </header>
 
       <!-- Main Tactical Layout -->
       <div class="hud-body">
-        <!-- Left Panel: Launch & Missile Config -->
-        <aside class="hud-panel left-panel">
-          <div class="panel-header">
-            <h2>MISSILE CONFIGURATION</h2>
-            <span class="status-indicator ready" id="system-status">STATUS: STANDBY</span>
-          </div>
-
-          <div class="panel-section">
-            <label class="input-label" for="preset-select">WEAPON SYSTEM / MISSILE PRESET</label>
-            <select id="preset-select" class="hud-select"></select>
-            <p class="preset-desc" id="preset-description"></p>
-          </div>
-
-          <div class="panel-section">
-            <div class="slider-header">
-              <label class="input-label" for="yield-slider">EXPLOSIVE YIELD</label>
-              <span class="value-readout" id="yield-readout">475 kt (0.48 Mt)</span>
+        
+        <!-- ================= MODE 1: SINGLE TACTICAL STRIKE ================= -->
+        <div class="mode-container mode-single-container" id="container-single">
+          <!-- Left Panel: Launch & Missile Config -->
+          <aside class="hud-panel left-panel">
+            <div class="panel-header">
+              <h2>MISSILE CONFIGURATION</h2>
+              <span class="status-indicator ready" id="system-status">STATUS: STANDBY</span>
             </div>
-            <input type="range" id="yield-slider" class="hud-range" min="1" max="50000" step="1" value="475">
-            <div class="burst-type-switch">
-              <button class="burst-btn active" id="burst-air">OPTIMAL AIRBURST</button>
-              <button class="burst-btn" id="burst-surface">SURFACE BURST</button>
-            </div>
-          </div>
 
-          <div class="panel-section">
-            <div class="slider-header">
-              <label class="input-label" for="speed-slider">MISSILE FLY RATE / VELOCITY</label>
-              <span class="value-readout" id="speed-readout">Mach 23 (~28,175 km/h)</span>
+            <div class="panel-section">
+              <label class="input-label" for="preset-select">WEAPON SYSTEM / MISSILE PRESET</label>
+              <select id="preset-select" class="hud-select"></select>
+              <p class="preset-desc" id="preset-description"></p>
             </div>
-            <input type="range" id="speed-slider" class="hud-range" min="1" max="50" step="1" value="23">
-          </div>
 
-          <div class="panel-section coordinates-box">
-            <div class="coord-block">
-              <div class="coord-title">
-                <span>🚀 LAUNCH SPOT</span>
-                <button class="pick-btn" id="pick-launch-btn">🎯 Click on Globe</button>
+            <div class="panel-section">
+              <div class="slider-header">
+                <label class="input-label" for="yield-slider">EXPLOSIVE YIELD</label>
+                <span class="value-readout" id="yield-readout">475 kt (0.48 Mt)</span>
               </div>
-              <select id="launch-preset-select" class="hud-select mini-select"></select>
-              <div class="coord-inputs">
-                <input type="number" id="launch-lat" class="coord-input" step="0.01" placeholder="Lat">
-                <input type="number" id="launch-lon" class="coord-input" step="0.01" placeholder="Lon">
+              <input type="range" id="yield-slider" class="hud-range" min="1" max="50000" step="1" value="475">
+              <div class="burst-type-switch">
+                <button class="burst-btn active" id="burst-air">OPTIMAL AIRBURST</button>
+                <button class="burst-btn" id="burst-surface">SURFACE BURST</button>
               </div>
             </div>
 
-            <div class="coord-block">
-              <div class="coord-title">
-                <span>🎯 DETONATION / TARGET</span>
-                <button class="pick-btn" id="pick-target-btn">🎯 Click on Globe</button>
+            <div class="panel-section">
+              <div class="slider-header">
+                <label class="input-label" for="speed-slider">MISSILE FLY RATE / VELOCITY</label>
+                <span class="value-readout" id="speed-readout">Mach 23 (~28,175 km/h)</span>
               </div>
-              <select id="target-preset-select" class="hud-select mini-select"></select>
-              <div class="coord-inputs">
-                <input type="number" id="target-lat" class="coord-input" step="0.01" placeholder="Lat">
-                <input type="number" id="target-lon" class="coord-input" step="0.01" placeholder="Lon">
+              <input type="range" id="speed-slider" class="hud-range" min="1" max="50" step="1" value="23">
+            </div>
+
+            <div class="panel-section coordinates-box">
+              <div class="coord-block">
+                <div class="coord-title">
+                  <span class="coord-tag">${ICONS.LAUNCH_SPOT} LAUNCH SPOT</span>
+                  <button class="pick-btn" id="pick-launch-btn">${ICONS.CROSSHAIR} Pick on Globe</button>
+                </div>
+                <select id="launch-preset-select" class="hud-select mini-select"></select>
+                <div class="coord-inputs">
+                  <input type="number" id="launch-lat" class="coord-input" step="0.01" placeholder="Lat">
+                  <input type="number" id="launch-lon" class="coord-input" step="0.01" placeholder="Lon">
+                </div>
+              </div>
+
+              <div class="coord-block">
+                <div class="coord-title">
+                  <span class="coord-tag">${ICONS.TARGET} TARGET / ZERO</span>
+                  <button class="pick-btn" id="pick-target-btn">${ICONS.CROSSHAIR} Pick on Globe</button>
+                </div>
+                <select id="target-preset-select" class="hud-select mini-select"></select>
+                <div class="coord-inputs">
+                  <input type="number" id="target-lat" class="coord-input" step="0.01" placeholder="Lat">
+                  <input type="number" id="target-lon" class="coord-input" step="0.01" placeholder="Lon">
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Flight Telemetry -->
-          <div class="panel-section telemetry-box">
-            <div class="telemetry-row">
-              <span>GREAT-CIRCLE DISTANCE:</span>
-              <strong id="tele-distance">0 km</strong>
+            <!-- Flight Telemetry -->
+            <div class="panel-section telemetry-box">
+              <div class="telemetry-row">
+                <span>GREAT-CIRCLE DISTANCE:</span>
+                <strong id="tele-distance">0 km</strong>
+              </div>
+              <div class="telemetry-row">
+                <span>ESTIMATED FLIGHT TIME:</span>
+                <strong id="tele-time">0m 0s</strong>
+              </div>
+              <div class="telemetry-row">
+                <span>EXOATMOSPHERIC APOGEE:</span>
+                <strong id="tele-apogee">0 km</strong>
+              </div>
+              <div class="flight-progress-bar">
+                <div class="progress-fill" id="flight-progress-fill"></div>
+              </div>
             </div>
-            <div class="telemetry-row">
-              <span>ESTIMATED FLIGHT TIME:</span>
-              <strong id="tele-time">0m 0s</strong>
-            </div>
-            <div class="telemetry-row">
-              <span>EXOATMOSPHERIC APOGEE:</span>
-              <strong id="tele-apogee">0 km</strong>
-            </div>
-            <div class="flight-progress-bar">
-              <div class="progress-fill" id="flight-progress-fill"></div>
-            </div>
-          </div>
 
-          <!-- Action Buttons -->
-          <div class="panel-actions">
-            <button class="action-btn launch-btn" id="btn-launch">⚡ LAUNCH MISSILE</button>
-            <button class="action-btn detonate-btn" id="btn-instant-detonate">💥 INSTANT DETONATION</button>
-            <button class="action-btn reset-btn" id="btn-reset">↺ RESET</button>
-          </div>
-        </aside>
-
-        <!-- Right Panel: Blast Damage Inspector & Physics Radii -->
-        <aside class="hud-panel right-panel">
-          <div class="panel-header">
-            <h2>EFFECTIVE DAMAGE RADIUS</h2>
-            <span class="hud-tag">GLASSTONE & NUKEMAP</span>
-          </div>
-
-          <div class="damage-summary-card">
-            <div class="summary-stat">
-              <span class="stat-label">EXPLOSIVE ENERGY</span>
-              <strong class="stat-value" id="summary-yield">475 Kilotons</strong>
+            <!-- Action Buttons -->
+            <div class="panel-actions">
+              <button class="action-btn launch-btn" id="btn-launch">${ICONS.MISSILE_LAUNCH} LAUNCH MISSILE</button>
+              <button class="action-btn detonate-btn" id="btn-instant-detonate">${ICONS.BLAST} INSTANT DETONATION</button>
+              <button class="action-btn reset-btn" id="btn-reset">${ICONS.RESET} RESET</button>
             </div>
-            <div class="summary-stat">
-              <span class="stat-label">TOTAL THERMAL AREA</span>
-              <strong class="stat-value" id="summary-thermal-area">0 km²</strong>
-            </div>
-            <div class="summary-stat">
-              <span class="stat-label">MUSHROOM TOP</span>
-              <strong class="stat-value" id="summary-cloud-height">0 km</strong>
-            </div>
-          </div>
+          </aside>
 
-          <!-- Damage Zones Table -->
-          <div class="zones-table-container">
-            <table class="zones-table" id="zones-table">
-              <thead>
-                <tr>
-                  <th>ZONE</th>
-                  <th>RADIUS</th>
-                  <th>AREA</th>
-                  <th>EFFECT</th>
-                </tr>
-              </thead>
-              <tbody id="zones-table-body"></tbody>
-            </table>
-          </div>
+          <!-- Right Panel: Blast Damage Inspector & Physics Radii -->
+          <aside class="hud-panel right-panel">
+            <div class="panel-header">
+              <h2>EFFECTIVE DAMAGE RADIUS</h2>
+              <span class="hud-tag">GLASSTONE & NUKEMAP</span>
+            </div>
 
-          <!-- Selected Zone Detail Card -->
-          <div class="zone-detail-card" id="zone-detail-card">
-            <h4 id="detail-zone-name">Fireball Zone</h4>
-            <div class="detail-metric" id="detail-zone-metric">Radius: 0.85 km</div>
-            <p id="detail-zone-desc">Vaporization point. Interior reaches millions of degrees.</p>
-          </div>
-        </aside>
+            <div class="damage-summary-card">
+              <div class="summary-stat">
+                <span class="stat-label">EXPLOSIVE ENERGY</span>
+                <strong class="stat-value" id="summary-yield">475 Kilotons</strong>
+              </div>
+              <div class="summary-stat">
+                <span class="stat-label">TOTAL THERMAL AREA</span>
+                <strong class="stat-value" id="summary-thermal-area">0 km²</strong>
+              </div>
+              <div class="summary-stat">
+                <span class="stat-label">MUSHROOM TOP</span>
+                <strong class="stat-value" id="summary-cloud-height">0 km</strong>
+              </div>
+            </div>
+
+            <!-- Damage Zones Table -->
+            <div class="zones-table-container">
+              <table class="zones-table" id="zones-table">
+                <thead>
+                  <tr>
+                    <th>ZONE</th>
+                    <th>RADIUS</th>
+                    <th>AREA</th>
+                    <th>EFFECT</th>
+                  </tr>
+                </thead>
+                <tbody id="zones-table-body"></tbody>
+              </table>
+            </div>
+
+            <!-- Selected Zone Detail Card -->
+            <div class="zone-detail-card" id="zone-detail-card">
+              <h4 id="detail-zone-name">Fireball Zone</h4>
+              <div class="detail-metric" id="detail-zone-metric">Radius: 0.85 km</div>
+              <p id="detail-zone-desc">Vaporization point. Interior reaches millions of degrees.</p>
+            </div>
+          </aside>
+        </div>
+
+
+        <!-- ================= MODE 2: ALL-OUT GLOBAL DOOMSDAY ================= -->
+        <div class="mode-container mode-doomsday-container hidden" id="container-doomsday">
+          <!-- Left Panel: Global Arsenal Command -->
+          <aside class="hud-panel left-panel doomsday-panel">
+            <div class="panel-header">
+              <h2>GLOBAL STRATEGIC ARSENAL</h2>
+              <span class="status-indicator ready" id="doomsday-status">READY: ${TOTAL_GLOBAL_ROCKETS} ROCKETS</span>
+            </div>
+
+            <div class="doomsday-alert-banner">
+              ${ICONS.SKULL}
+              <div>
+                <strong>MASSIVE MUTUAL ASSURED DESTRUCTION (MAD)</strong>
+                <span>All 9 nuclear nations fire their entire operational strategic rocket arsenals at random major countries worldwide.</span>
+              </div>
+            </div>
+
+            <div class="arsenal-summary-cards">
+              <div class="arsenal-metric">
+                <span class="metric-label">TOTAL ROCKETS</span>
+                <strong class="metric-num">${TOTAL_GLOBAL_ROCKETS}</strong>
+              </div>
+              <div class="arsenal-metric">
+                <span class="metric-label">NUCLEAR NATIONS</span>
+                <strong class="metric-num">9</strong>
+              </div>
+              <div class="arsenal-metric">
+                <span class="metric-label">EST. WARHEADS</span>
+                <strong class="metric-num">~4,000+</strong>
+              </div>
+            </div>
+
+            <div class="panel-section arsenal-roster-box">
+              <span class="input-label">NATIONAL STRATEGIC ROCKET STOCKS</span>
+              <div class="nations-list" id="nations-roster">
+                ${NUCLEAR_NATIONS.map(n => `
+                  <div class="nation-row" style="border-left-color: ${n.color}">
+                    <div class="nation-info">
+                      <span class="nation-name">${n.name}</span>
+                      <span class="nation-sub">${n.missileTypes[0]}</span>
+                    </div>
+                    <div class="nation-count">
+                      <strong>${n.strategicRockets}</strong>
+                      <span>rockets</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Action Buttons for Doomsday -->
+            <div class="panel-actions doomsday-actions">
+              <button class="action-btn doomsday-btn-fire" id="btn-fire-doomsday">
+                ${ICONS.SKULL} EXECUTE ALL-OUT DOOMSDAY
+              </button>
+              <button class="action-btn reset-btn" id="btn-reset-doomsday">
+                ${ICONS.RESET} CEASEFIRE / RESET
+              </button>
+            </div>
+          </aside>
+
+          <!-- Right Panel: Global Fallout & Casualty Telemetry -->
+          <aside class="hud-panel right-panel doomsday-panel">
+            <div class="panel-header">
+              <h2>DOOMSDAY IMPACT & FALLOUT</h2>
+              <span class="hud-tag danger">NUCLEAR WINTER</span>
+            </div>
+
+            <div class="doomsday-live-telemetry">
+              <!-- Rocket Status Counters -->
+              <div class="telemetry-grid">
+                <div class="tele-item launched">
+                  <span class="tele-label">${ICONS.MISSILE_LAUNCH} LAUNCHED</span>
+                  <strong class="tele-val" id="stat-launched">0</strong>
+                </div>
+                <div class="tele-item inflight">
+                  <span class="tele-label">${ICONS.FLIGHT} IN FLIGHT</span>
+                  <strong class="tele-val" id="stat-inflight">0</strong>
+                </div>
+                <div class="tele-item detonated">
+                  <span class="tele-label">${ICONS.BLAST} DETONATED</span>
+                  <strong class="tele-val" id="stat-detonated">0</strong>
+                </div>
+              </div>
+
+              <!-- Severe Global Impacts Cards -->
+              <div class="impact-cards-container">
+                <div class="impact-card casualties">
+                  <div class="impact-header">
+                    ${ICONS.SKULL}
+                    <span>PROMPT FATALITIES</span>
+                  </div>
+                  <strong class="impact-val" id="stat-casualties">0</strong>
+                  <span class="impact-sub">Direct blast, thermal, and lethal radiation</span>
+                </div>
+
+                <div class="impact-card megatons">
+                  <div class="impact-header">
+                    ${ICONS.FIRE}
+                    <span>TOTAL MEGATONNAGE</span>
+                  </div>
+                  <strong class="impact-val" id="stat-megatons">0 Mt</strong>
+                  <span class="impact-sub">Cumulative thermonuclear yield detonated</span>
+                </div>
+
+                <div class="impact-card winter">
+                  <div class="impact-header">
+                    ${ICONS.FALLOUT}
+                    <span>NUCLEAR WINTER COOLING</span>
+                  </div>
+                  <strong class="impact-val" id="stat-temp">-0.0 °C</strong>
+                  <span class="impact-sub" id="stat-soot">0.0 Tg stratospheric soot injected</span>
+                </div>
+
+                <div class="impact-card biosphere">
+                  <div class="impact-header">
+                    ${ICONS.RADIATION}
+                    <span>GLOBAL BIOSPHERE COLLAPSE</span>
+                  </div>
+                  <div class="biosphere-bars">
+                    <div class="bio-bar-row">
+                      <span>Agri Collapse:</span>
+                      <strong id="stat-agri">0%</strong>
+                    </div>
+                    <div class="bio-bar-row">
+                      <span>Ozone Loss:</span>
+                      <strong id="stat-ozone">0%</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- National Strike Breakdown Table -->
+              <div class="doomsday-breakdown-box">
+                <span class="input-label">NATION-BY-NATION STRIKE STATUS</span>
+                <table class="strike-status-table">
+                  <thead>
+                    <tr>
+                      <th>POWER</th>
+                      <th>ARSENAL</th>
+                      <th>LAUNCHED</th>
+                      <th>IMPACTS</th>
+                    </tr>
+                  </thead>
+                  <tbody id="strike-table-body">
+                    ${NUCLEAR_NATIONS.map(n => `
+                      <tr id="row-nation-${n.id}">
+                        <td><span class="nation-badge" style="background:${n.color}"></span> ${n.name}</td>
+                        <td>${n.strategicRockets}</td>
+                        <td id="cell-launched-${n.id}">0</td>
+                        <td id="cell-impacts-${n.id}">0</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </aside>
+        </div>
+
       </div>
 
       <!-- Bottom Floating Camera Bar -->
       <nav class="hud-bottom-bar">
         <span class="cam-label">CAMERA:</span>
-        <button class="cam-btn active" data-cam="orbit">🌐 Free Orbit</button>
-        <button class="cam-btn" data-cam="missile">🚀 Follow Missile</button>
-        <button class="cam-btn" data-cam="target">🎯 Regional View</button>
-        <button class="cam-btn" data-cam="city">🏙️ City Close-Up</button>
-        <button class="cam-btn" data-cam="blast">💥 Blast Overview</button>
+        <button class="cam-btn active" data-cam="orbit">${ICONS.ORBIT} Free Orbit</button>
+        <button class="cam-btn" data-cam="missile" id="cam-btn-missile">${ICONS.FLIGHT} Follow Missile</button>
+        <button class="cam-btn" data-cam="salvo" id="cam-btn-salvo">${ICONS.SALVO} Track Salvo</button>
+        <button class="cam-btn" data-cam="target">${ICONS.RADAR} Regional View</button>
+        <button class="cam-btn" data-cam="city">${ICONS.CITY} City Close-Up</button>
+        <button class="cam-btn" data-cam="blast">${ICONS.BLAST_OVERVIEW} Blast Overview</button>
       </nav>
 
       <!-- Picking instructions banner (hidden by default) -->
@@ -199,6 +381,52 @@ export class SimulationHUD {
   }
 
   bindEvents() {
+    // Mode Switcher buttons
+    const btnSingle = document.getElementById('btn-mode-single');
+    const btnDoomsday = document.getElementById('btn-mode-doomsday');
+    const containerSingle = document.getElementById('container-single');
+    const containerDoomsday = document.getElementById('container-doomsday');
+    const defconBadge = document.getElementById('defcon-indicator');
+
+    btnSingle.addEventListener('click', () => {
+      this.currentMode = 'single';
+      btnSingle.classList.add('active');
+      btnDoomsday.classList.remove('active');
+      containerSingle.classList.remove('hidden');
+      containerDoomsday.classList.add('hidden');
+      defconBadge.textContent = 'DEFCON 1';
+      defconBadge.className = 'defcon-badge';
+      this.app.setSimulationMode('single');
+    });
+
+    btnDoomsday.addEventListener('click', () => {
+      this.currentMode = 'doomsday';
+      btnDoomsday.classList.add('active');
+      btnSingle.classList.remove('active');
+      containerDoomsday.classList.remove('hidden');
+      containerSingle.classList.add('hidden');
+      defconBadge.textContent = 'DOOMSDAY';
+      defconBadge.className = 'defcon-badge doomsday-active';
+      this.app.setSimulationMode('doomsday');
+    });
+
+    // Doomsday actions
+    document.getElementById('btn-fire-doomsday').addEventListener('click', () => {
+      this.app.startDoomsdayExchange();
+      document.getElementById('doomsday-status').textContent = 'EXCHANGE IN PROGRESS';
+      document.getElementById('doomsday-status').className = 'status-indicator flight';
+      defconBadge.textContent = 'EXTINCTION EVENT';
+      defconBadge.className = 'defcon-badge apocalyptic';
+    });
+
+    document.getElementById('btn-reset-doomsday').addEventListener('click', () => {
+      this.app.resetDoomsdayExchange();
+      document.getElementById('doomsday-status').textContent = `READY: ${TOTAL_GLOBAL_ROCKETS} ROCKETS`;
+      document.getElementById('doomsday-status').className = 'status-indicator ready';
+      defconBadge.textContent = 'DOOMSDAY';
+      defconBadge.className = 'defcon-badge doomsday-active';
+    });
+
     // Preset selection
     const presetSelect = document.getElementById('preset-select');
     presetSelect.addEventListener('change', (e) => {
@@ -263,7 +491,7 @@ export class SimulationHUD {
         btn.classList.add('active');
         const ts = parseFloat(btn.dataset.ts);
         this.app.setTimescale(ts);
-        document.getElementById('btn-pause').textContent = '⏸';
+        document.getElementById('btn-pause').innerHTML = ICONS.PAUSE;
       });
     });
 
@@ -271,7 +499,7 @@ export class SimulationHUD {
     const btnPause = document.getElementById('btn-pause');
     btnPause.addEventListener('click', () => {
       const isPaused = this.app.togglePause();
-      btnPause.textContent = isPaused ? '▶' : '⏸';
+      btnPause.innerHTML = isPaused ? ICONS.PLAY : ICONS.PAUSE;
       btnPause.classList.toggle('active', isPaused);
     });
 
@@ -279,7 +507,7 @@ export class SimulationHUD {
     const btnAudio = document.getElementById('btn-audio');
     btnAudio.addEventListener('click', () => {
       const muted = sound.toggleMute();
-      btnAudio.textContent = muted ? '🔇' : '🔊';
+      btnAudio.innerHTML = muted ? ICONS.MUTE : ICONS.VOLUME;
       btnAudio.classList.toggle('muted', muted);
     });
 
@@ -450,7 +678,6 @@ export class SimulationHUD {
       </tr>
     `).join('');
 
-    // Row click listeners to display zone detail card
     const rows = tbody.querySelectorAll('.zone-row');
     rows.forEach(row => {
       row.addEventListener('click', () => {
@@ -461,7 +688,6 @@ export class SimulationHUD {
       });
     });
 
-    // Default to fireball
     if (effects.zones.length > 0) {
       this.showZoneDetail(effects.zones[0]);
     }
@@ -472,6 +698,41 @@ export class SimulationHUD {
     document.getElementById('detail-zone-name').style.color = zone.color;
     document.getElementById('detail-zone-metric').textContent = `Radius: ${zone.radiusKm.toFixed(2)} km (${zone.radiusMiles.toFixed(2)} miles) | Area: ${Math.round(zone.areaSqKm).toLocaleString()} km²`;
     document.getElementById('detail-zone-desc').textContent = `${zone.description} (Pressure: ${zone.overpressurePsi})`;
+  }
+
+  /**
+   * Updates live Doomsday telemetry display
+   */
+  updateDoomsdayStats(stats) {
+    const elLaunched = document.getElementById('stat-launched');
+    const elInflight = document.getElementById('stat-inflight');
+    const elDetonated = document.getElementById('stat-detonated');
+    const elCasualties = document.getElementById('stat-casualties');
+    const elMegatons = document.getElementById('stat-megatons');
+    const elTemp = document.getElementById('stat-temp');
+    const elSoot = document.getElementById('stat-soot');
+    const elAgri = document.getElementById('stat-agri');
+    const elOzone = document.getElementById('stat-ozone');
+
+    if (elLaunched) elLaunched.textContent = stats.launched.toLocaleString();
+    if (elInflight) elInflight.textContent = stats.inFlight.toLocaleString();
+    if (elDetonated) elDetonated.textContent = stats.detonated.toLocaleString();
+    if (elCasualties) elCasualties.textContent = stats.promptCasualties.toLocaleString();
+    if (elMegatons) elMegatons.textContent = `${stats.totalMegatons.toFixed(1)} Mt`;
+    if (elTemp) elTemp.textContent = `-${stats.tempDropC.toFixed(1)} °C`;
+    if (elSoot) elSoot.textContent = `${stats.sootTg.toFixed(1)} Tg soot shroud in stratosphere`;
+    if (elAgri) elAgri.textContent = `${stats.agriCollapsePercent.toFixed(1)}%`;
+    if (elOzone) elOzone.textContent = `${stats.ozoneDepletionPercent.toFixed(1)}%`;
+
+    // Update nation-by-nation cells
+    if (stats.nationStats) {
+      for (const [nid, nstat] of Object.entries(stats.nationStats)) {
+        const cellL = document.getElementById(`cell-launched-${nid}`);
+        const cellI = document.getElementById(`cell-impacts-${nid}`);
+        if (cellL) cellL.textContent = `${nstat.launched} / ${nstat.total}`;
+        if (cellI) cellI.textContent = nstat.detonated;
+      }
+    }
   }
 
   startGlobePicking(mode) {
@@ -506,8 +767,10 @@ export class SimulationHUD {
 
   setStatus(text, type = 'ready') {
     const el = document.getElementById('system-status');
-    el.textContent = `STATUS: ${text}`;
-    el.className = `status-indicator ${type}`;
+    if (el) {
+      el.textContent = `STATUS: ${text}`;
+      el.className = `status-indicator ${type}`;
+    }
   }
 
   updateProgress(progress) {

@@ -7,6 +7,7 @@ export default defineConfig({
     host: true
   },
   build: {
+    outDir: 'docs',
     rollupOptions: {
       input: {
         app: resolve(__dirname, 'src/main.js')
